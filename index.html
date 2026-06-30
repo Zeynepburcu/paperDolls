@@ -30,7 +30,6 @@
     background-image:radial-gradient(rgba(120,90,50,.10) 1px, transparent 1.4px);
     background-size:7px 7px;
   }
-  /* hide the system pointer where there is one — we draw our own paper hand */
   @media (pointer:fine){ html, body, #app, #app *{ cursor:none !important; } }
 
   #app{
@@ -51,21 +50,21 @@
     color:var(--ink); opacity:.8;
   }
 
-  /* the play sheet */
-  #stage{ position:relative; flex:1 1 auto; min-height:0; touch-action:none; }
+  /* the play sheet — its own stacking context so the paper, the doll, the loose
+     clothes and the fly-out animation all layer predictably */
+  #stage{ position:relative; flex:1 1 auto; min-height:0; touch-action:none; z-index:0; }
 
-  /* the doll. Its box has the doll's exact aspect ratio, so object-fit:contain
-     fills it edge-to-edge — that lets a garment painted into the same box align
-     perfectly. The doll never moves; clothes are laid over it. */
+  /* the doll (revealed once she's been cut out) */
   .doll-stage{
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
     width:clamp(150px, 46vw, 320px);
     aspect-ratio:1181/1772; height:auto; max-height:96%;
-    pointer-events:none; z-index:1;
+    pointer-events:none; z-index:25;
     filter:drop-shadow(0 8px 10px var(--shadow));
+    transition:opacity .35s ease;
   }
+  .doll-stage.locked{ opacity:0; }
   .doll-stage .doll{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
-  /* glow ring that lights up the instant a garment is aligned & about to snap */
   .snap-ring{
     position:absolute; left:8%; top:6%; right:8%; bottom:6%;
     border:3px dashed var(--mint); border-radius:24px;
@@ -74,17 +73,40 @@
   }
   .doll-stage.snap-ready .snap-ring{ opacity:1; transform:scale(1); }
 
-  /* a free-roaming piece of clothing. The wrapper is cropped to just the garment
-     (overflow:hidden) while the full-canvas image inside is offset so the garment
-     shows — that keeps its on-doll alignment while letting it roam loose. */
+  /* a free-roaming piece of clothing (hidden until cut out) */
   .piece{
     position:absolute; top:0; left:0; overflow:hidden;
-    pointer-events:none;                 /* hit-testing is done on the stage */
-    opacity:0; transition:opacity .25s ease;
-    will-change:transform;
-    filter:drop-shadow(2px 4px 4px rgba(74,58,44,.30));
+    pointer-events:none; opacity:0; transition:opacity .3s ease;
+    will-change:transform; filter:drop-shadow(2px 4px 4px rgba(74,58,44,.30));
   }
   .piece img{ position:absolute; max-width:none; pointer-events:none; }
+
+  /* ---- the cut-out sheet (intro) ---- */
+  #sheet{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    z-index:5;
+    background:linear-gradient(#fffdf3,#fbf1d8);
+    border:1px solid rgba(74,58,44,.25); border-radius:10px;
+    box-shadow:0 12px 34px var(--shadow), inset 0 0 0 6px rgba(255,255,255,.45);
+    transition:opacity .5s ease, transform .5s ease;
+  }
+  #sheet.gone{ opacity:0; transform:translate(-50%,-50%) scale(.96); pointer-events:none; }
+  .sheet-item{ position:absolute; background-repeat:no-repeat; }
+  .cut-outline{ position:absolute; inset:-3px; border:2px dashed rgba(74,58,44,.45); border-radius:8px; }
+  .cut-dot{
+    position:absolute; transform:translate(-50%,-50%);
+    width:26px; height:26px; padding:0; border-radius:50%;
+    background:#fffbe9; border:1.5px solid var(--rose); color:var(--rose-dk);
+    font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 1px 3px var(--shadow); z-index:2; font-family:inherit;
+    transition:opacity .15s ease, transform .15s ease;
+  }
+  .cut-dot.snipped{ opacity:.22; transform:translate(-50%,-50%) scale(.65); }
+  /* the piece peeling off the page, lifting perpendicular before landing */
+  .fly-clone{
+    position:fixed; z-index:250; background-repeat:no-repeat; pointer-events:none;
+    filter:drop-shadow(2px 8px 10px rgba(74,58,44,.4));
+  }
 
   /* our paper-doll hand cursor */
   #cursor{
@@ -94,8 +116,10 @@
   }
   #cursor.show{ opacity:1; }
 
-  /* ---- "a day in Debbie's life" buttons + note ---- */
-  #story{ flex:0 0 auto; padding:6px 10px max(8px,env(safe-area-inset-bottom)); text-align:center; z-index:5; }
+  /* ---- story buttons + note (hidden until everything is cut out) ---- */
+  #story{ flex:0 0 auto; padding:6px 10px max(8px,env(safe-area-inset-bottom)); text-align:center; z-index:5;
+          transition:opacity .4s ease; }
+  #story.locked{ opacity:0; pointer-events:none; }
   .story-btns{ display:flex; gap:7px; justify-content:center; flex-wrap:wrap; }
   .story-btn{
     font-family:inherit; font-size:clamp(11px,3.1vw,14px); font-style:italic;
@@ -105,16 +129,11 @@
     transition:transform .1s ease, box-shadow .1s ease, background .15s ease;
   }
   .story-btn:active{ transform:translateY(1px); box-shadow:0 1px 2px var(--shadow); }
-  .story-btn.active{
-    background:linear-gradient(var(--rose),var(--rose-dk)); color:#fff8ea;
-    border-color:var(--rose-dk);
-  }
-  /* the note keeps its space reserved so opening it never nudges the doll */
+  .story-btn.active{ background:linear-gradient(var(--rose),var(--rose-dk)); color:#fff8ea; border-color:var(--rose-dk); }
   .story-msg{
     min-height:3.4em; margin:9px auto 0; max-width:520px;
     display:flex; align-items:center; justify-content:center;
-    font-style:italic; font-size:clamp(12px,3.4vw,15px); line-height:1.35;
-    color:var(--ink);
+    font-style:italic; font-size:clamp(12px,3.4vw,15px); line-height:1.35; color:var(--ink);
     background:#fffbf0; border:1px dashed rgba(74,58,44,.35); border-radius:12px;
     padding:9px 14px; box-shadow:inset 0 1px 3px rgba(74,58,44,.10);
     opacity:0; transform:translateY(4px); transition:opacity .25s ease, transform .25s ease;
@@ -131,9 +150,7 @@
   }
   #toast.show{ opacity:1; transform:translate(-50%,0); }
 
-  /* sparkle burst on snap */
-  .spark{ position:fixed; z-index:55; font-size:20px; pointer-events:none;
-          animation:spark .7s ease-out forwards; }
+  .spark{ position:fixed; z-index:255; font-size:20px; pointer-events:none; animation:spark .7s ease-out forwards; }
   @keyframes spark{
     0%{ transform:translate(-50%,-50%) scale(.4); opacity:0; }
     25%{ opacity:1; }
@@ -145,19 +162,20 @@
 <div id="app">
   <header>
     <h1>Dress-Up&nbsp;Debbie</h1>
-    <p class="sub">drag the clothes anywhere — line one up on Debbie and it snaps on!</p>
+    <p class="sub" id="sub">✂ snip around each piece to cut Debbie &amp; her clothes out of the paper!</p>
   </header>
 
   <div id="stage">
-    <div class="doll-stage" id="dollStage">
+    <div class="doll-stage locked" id="dollStage">
       <img class="doll" src="Assets/dollA.png" alt="Paper doll Debbie">
       <div class="snap-ring"></div>
     </div>
+    <div id="sheet"></div>
     <!-- clothing pieces injected here -->
     <div id="toast"></div>
   </div>
 
-  <div id="story">
+  <div id="story" class="locked">
     <div class="story-btns">
       <button class="story-btn" data-key="work">Send Debbie to work</button>
       <button class="story-btn" data-key="date">Send Debbie on a date</button>
@@ -171,54 +189,75 @@
 
 <script>
 /* =========================================================================
-   DRESS-UP DEBBIE — vintage paper-doll dress-up
-   - Each outfit is a FREE-ROAMING piece: drag and drop it anywhere on screen.
-   - Drop it within SNAP_PX of where it lines up on the doll and it snaps into
-     exact place; drop it anywhere else and it just stays put.
-   - The mouse pointer is replaced by a paper hand: a pointing finger normally,
-     a pressing hand while you drag.
+   DRESS-UP DEBBIE
+   1) CUT-OUT INTRO: the doll + every outfit are packed onto one paper page.
+      Snip around each one (click several points on its edge) and it peels off
+      the page — lifting perpendicular — and lands on the canvas. When the last
+      piece is out, the leftover paper disappears.
+   2) DRESS-UP: clothes free-roam; drop one within SNAP_PX of where it lines up
+      on Debbie and it snaps on. The cursor is a pointing/pressing paper hand.
    ========================================================================= */
 
 const A = 'Assets/';
+const DOLL_SRC = A+'dollA.png';
 const OUTFITS = [
-  { id:'coat1', src:A+'dollACoat1.png', name:'Fuzzy Coat' },
-  { id:'coat2', src:A+'dollACoat2.png', name:'Pea Coat'   },
-  { id:'coat3', src:A+'dollACoat3.png', name:'Rose Dress' },
-  { id:'coat4', src:A+'dollACoat4.png', name:'Red Suit'   },
+  { id:'coat1', src:A+'dollACoat1.png', name:'Fuzzy Coat'  },
+  { id:'coat2', src:A+'dollACoat2.png', name:'Pea Coat'    },
+  { id:'coat3', src:A+'dollACoat3.png', name:'Rose Dress'  },
+  { id:'coat4', src:A+'dollACoat4.png', name:'Red Suit'    },
+  { id:'coat5', src:A+'dollACoat5.png', name:'Caramel Suit'},
+  { id:'coat6', src:A+'dollACoat6.png', name:'Pink Coat'   },
+  { id:'coat7', src:A+'dollACoat7.png', name:'Emerald Gown'},
 ];
-const SNAP_PX = 5;                 // it only snaps when this close to lined up
-const SLOTS = ['L-up','R-up','L-dn','R-dn'];
+const SNAP_PX = 5;
+const CUT_POINTS = [[0.16,0.12],[0.84,0.12],[0.90,0.58],[0.66,0.92],[0.18,0.84]];
+const CUT_SUB  = '✂ snip around each piece to cut Debbie & her clothes out of the paper!';
+const PLAY_SUB = 'drag the clothes anywhere — line one up on Debbie and it snaps on!';
 
 const stage     = document.getElementById('stage');
 const dollStage = document.getElementById('dollStage');
+const sheet     = document.getElementById('sheet');
+const story     = document.getElementById('story');
 const toastEl   = document.getElementById('toast');
 const cursor    = document.getElementById('cursor');
+const subEl     = document.getElementById('sub');
 
+let phase = 'cutting';                 // 'cutting' -> 'play'
 const pieces = [];
-let W=0, H=0, dollOX=0, dollOY=0, stageW=0, stageH=0;   // current geometry
+let W=0, H=0, dollOX=0, dollOY=0, stageW=0, stageH=0;
 
-/* ---------- build the loose clothing pieces ---------- */
-OUTFITS.forEach((o, i) => {
+/* ---------- doll, as a cut-out item ---------- */
+const dollItem = { doll:true, src:DOLL_SRC, ready:false, fx:0,fy:0,fw:1,fh:1, nW:1181,nH:1772 };
+(() => {
+  const im = new Image();
+  im.onload = () => {
+    dollItem.nW = im.naturalWidth; dollItem.nH = im.naturalHeight;
+    const a = analyze(im);
+    if(a){ dollItem.fx=a.fx; dollItem.fy=a.fy; dollItem.fw=a.fw; dollItem.fh=a.fh; }
+    dollItem.ready = true; tryBuildSheet();
+  };
+  im.src = DOLL_SRC;
+})();
+
+/* ---------- clothing pieces (hidden until cut out) ---------- */
+OUTFITS.forEach(o => {
   const el = document.createElement('div'); el.className = 'piece';
   const img = document.createElement('img'); img.src = o.src; img.draggable = false;
   el.appendChild(img);
   stage.appendChild(el);
-  const p = { el, img, name:o.name, slot:SLOTS[i%4],
-              ready:false, worn:false, x:null, y:null,
-              fx:0, fy:0, fw:1, fh:1, hit:null, homeX:0, homeY:0 };
+  const p = { el, img, name:o.name, ready:false, released:false, worn:false,
+              x:null, y:null, fx:0, fy:0, fw:1, fh:1, hit:null, homeX:0, homeY:0,
+              nW:1181, nH:1772 };
   pieces.push(p);
   img.onload = () => {
+    p.nW = img.naturalWidth; p.nH = img.naturalHeight;
     const a = analyze(img);
     if(a){ p.fx=a.fx; p.fy=a.fy; p.fw=a.fw; p.fh=a.fh; p.hit=a.hit; }
-    p.ready = true;
-    layout();
-    el.style.opacity = 1;
+    p.ready = true; layout(); tryBuildSheet();
   };
 });
 
-/* trim transparent margins (so a piece is just the garment) and keep a tiny
-   alpha map for see-through hit-testing. Falls back to the full canvas if pixels
-   can't be read (e.g. opened from file://). */
+/* trim transparent margins + keep a tiny alpha map for see-through hit-testing */
 function analyze(img){
   try{
     const max = 170;
@@ -237,12 +276,139 @@ function analyze(img){
     const pad=2;
     minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
     maxX=Math.min(w-1,maxX+pad); maxY=Math.min(h-1,maxY+pad);
-    return { fx:minX/w, fy:minY/h, fw:(maxX-minX+1)/w, fh:(maxY-minY+1)/h,
-             hit:{ w, h, data } };
+    return { fx:minX/w, fy:minY/h, fw:(maxX-minX+1)/w, fh:(maxY-minY+1)/h, hit:{ w, h, data } };
   }catch(e){ return null; }
 }
 
-/* ---------- lay out doll geometry + size/position every piece ---------- */
+/* paint just the garment (cropped from its full canvas) as a CSS background */
+function applyCrop(el, src, fx,fy,fw,fh){
+  el.style.backgroundImage = `url("${src}")`;
+  el.style.backgroundRepeat = 'no-repeat';
+  el.style.backgroundSize = `${(100/fw).toFixed(3)}% ${(100/fh).toFixed(3)}%`;
+  const px = fw < 0.999 ? (100*fx/(1-fw)) : 0;
+  const py = fh < 0.999 ? (100*fy/(1-fh)) : 0;
+  el.style.backgroundPosition = `${px.toFixed(3)}% ${py.toFixed(3)}%`;
+}
+
+/* ===================== CUT-OUT SHEET ===================== */
+const cutList = [];
+let sheetBuilt = false;
+
+function tryBuildSheet(){
+  if(sheetBuilt || !dollItem.ready || !pieces.every(p => p.ready)) return;
+  sheetBuilt = true;
+  buildSheet();
+}
+
+function buildSheet(){
+  cutList.length = 0;
+  cutList.push(dollItem);
+  for(const p of pieces) cutList.push({ piece:p, src:p.img.src,
+      fx:p.fx, fy:p.fy, fw:p.fw, fh:p.fh, nW:p.nW, nH:p.nH });
+
+  const sRect = stage.getBoundingClientRect();
+  const availW = Math.min(sRect.width*0.96, 600);
+  const C = Math.max(2, Math.min(5, Math.round(availW/128)));
+  const gap = 7;
+  const colW = (availW - gap*(C-1)) / C;
+  const colH = new Array(C).fill(0);
+  for(const it of cutList){                       // skyline (masonry) packing
+    const ar = (it.fw*it.nW) / (it.fh*it.nH);
+    const w = colW, h = colW/ar;
+    let ci=0; for(let i=1;i<C;i++) if(colH[i] < colH[ci]) ci=i;
+    it.sx = ci*(colW+gap); it.sy = colH[ci]; it.sw = w; it.sh = h;
+    colH[ci] += h + gap;
+  }
+  const contentW = C*colW + (C-1)*gap;
+  const contentH = Math.max(...colH) - gap;
+  const pad = 14;
+  const scale = Math.min(1,
+      (sRect.height - 12) / (contentH + pad*2),
+      (sRect.width  * 0.98) / (contentW + pad*2));
+
+  sheet.style.width  = (contentW*scale + pad*2) + 'px';
+  sheet.style.height = (contentH*scale + pad*2) + 'px';
+  sheet.innerHTML = '';
+
+  for(const it of cutList){
+    const el = document.createElement('div');
+    el.className = 'sheet-item';
+    el.style.left   = (pad + it.sx*scale) + 'px';
+    el.style.top    = (pad + it.sy*scale) + 'px';
+    el.style.width  = (it.sw*scale) + 'px';
+    el.style.height = (it.sh*scale) + 'px';
+    applyCrop(el, it.src, it.fx, it.fy, it.fw, it.fh);
+
+    const outline = document.createElement('div');
+    outline.className = 'cut-outline';
+    el.appendChild(outline);
+
+    it.cut = 0; it.released = false; it.el = el;
+    for(const [rx,ry] of CUT_POINTS){
+      const dot = document.createElement('button');
+      dot.type = 'button'; dot.className = 'cut-dot'; dot.textContent = '✂';
+      dot.style.left = (rx*100)+'%'; dot.style.top = (ry*100)+'%';
+      dot.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if(dot.classList.contains('snipped')) return;
+        dot.classList.add('snipped');
+        it.cut++;
+        if(it.cut >= CUT_POINTS.length) releaseItem(it);
+      });
+      el.appendChild(dot);
+    }
+    sheet.appendChild(el);
+  }
+}
+
+/* a finished item peels off the page (lifting perpendicular) and lands on the
+   canvas, where its real, draggable version takes over */
+function releaseItem(it){
+  if(it.released) return;
+  it.released = true;
+  const from = it.el.getBoundingClientRect();
+  const target = it.doll ? dollStage : it.piece.el;
+  const to = target.getBoundingClientRect();
+
+  const clone = document.createElement('div');
+  clone.className = 'fly-clone';
+  applyCrop(clone, it.src, it.fx, it.fy, it.fw, it.fh);
+  Object.assign(clone.style, {
+    left:from.left+'px', top:from.top+'px',
+    width:from.width+'px', height:from.height+'px' });
+  document.body.appendChild(clone);
+  it.el.remove();                                  // leaves a hole in the paper
+
+  const dx = (to.left + to.width/2) - (from.left + from.width/2);
+  const dy = (to.top  + to.height/2) - (from.top + from.height/2);
+  const sc = to.width / from.width;
+
+  const anim = clone.animate([
+    { transform:'perspective(900px) translate(0px,0px) rotateX(0deg) scale(1)' },
+    { transform:`perspective(900px) translate(${dx*0.45}px,${dy*0.45 - 44}px) rotateX(-82deg) scale(${((1+sc)/2).toFixed(3)})`, offset:0.5 },
+    { transform:`perspective(900px) translate(${dx}px,${dy}px) rotateX(0deg) scale(${sc.toFixed(3)})` },
+  ], { duration:700, easing:'cubic-bezier(.25,.7,.25,1)' });
+
+  anim.onfinish = () => {
+    clone.remove();
+    if(it.doll){ dollStage.classList.remove('locked'); }
+    else { it.piece.el.style.opacity = 1; it.piece.released = true; it.piece.el.style.zIndex = (++zTop); }
+    sparkle(to.left + to.width/2, to.top + to.height*0.4);
+    if(cutList.every(c => c.released)) finishCutting();
+  };
+}
+
+function finishCutting(){
+  phase = 'play';
+  sheet.classList.add('gone');
+  setTimeout(() => sheet.remove(), 520);
+  story.classList.remove('locked');
+  subEl.textContent = PLAY_SUB;
+  layout();
+  toast('All cut out! Now dress Debbie up 💃');
+}
+
+/* ===================== DRESS-UP LAYOUT ===================== */
 function layout(){
   const sRect = stage.getBoundingClientRect();
   const dRect = dollStage.getBoundingClientRect();
@@ -250,8 +416,8 @@ function layout(){
   dollOX = dRect.left - sRect.left; dollOY = dRect.top - sRect.top;
   stageW = sRect.width; stageH = sRect.height;
 
-  for(const p of pieces){
-    if(!p.ready) continue;
+  pieces.forEach((p, i) => {
+    if(!p.ready) return;
     const pw = p.fw*W, ph = p.fh*H;
     p.el.style.width  = pw + 'px';
     p.el.style.height = ph + 'px';
@@ -263,51 +429,48 @@ function layout(){
     p.homeY = dollOY + p.fy*H;
 
     if(p.worn){ p.x = p.homeX; p.y = p.homeY; }
-    else if(p.x === null){ scatter(p, pw, ph); }
+    else if(p.x === null){ scatter(p, pw, ph, i, pieces.length); }
     else { p.x = clamp(p.x, 0, stageW-pw); p.y = clamp(p.y, 0, stageH-ph); }
     applyPos(p);
-  }
+  });
 }
 function clamp(v,a,b){ return Math.max(a, Math.min(v,b)); }
 function applyPos(p){ p.el.style.transform = `translate(${p.x}px, ${p.y}px)`; }
 
-/* starting spots: clothes laid out around the doll */
-function scatter(p, pw, ph){
-  const gap = 8;
-  const leftX  = Math.max(gap, dollOX - pw - gap);
-  const rightX = Math.min(stageW - pw - gap, dollOX + W + gap);
-  const upY    = Math.max(gap, dollOY + H*0.06);
-  const dnY    = Math.min(stageH - ph - gap, dollOY + H*0.42);
-  switch(p.slot){
-    case 'L-up': p.x=leftX;  p.y=upY; break;
-    case 'R-up': p.x=rightX; p.y=upY; break;
-    case 'L-dn': p.x=leftX;  p.y=dnY; break;
-    default:     p.x=rightX; p.y=dnY;
-  }
+/* loose starting spots: clothes cascade down each side of the doll */
+function scatter(p, pw, ph, idx, total){
+  const half = Math.ceil(total/2);
+  const onLeft = idx < half;
+  const grp = onLeft ? idx : (idx - half);
+  const grpN = onLeft ? half : (total - half);
+  const colX = onLeft ? Math.max(4, dollOX - pw - 6)
+                      : Math.min(stageW - pw - 4, dollOX + W + 6);
+  const top = 4, bottom = Math.max(4, stageH - ph - 4);
+  const t = grpN > 1 ? grp/(grpN-1) : 0.5;
+  p.x = clamp(colX + (onLeft?-1:1)*grp*7, 2, stageW - pw - 2);
+  p.y = top + t*(bottom - top);
 }
 
-/* ---------- pick the top-most garment under a point (sees through holes) ---------- */
+/* ===================== DRAGGING ===================== */
+let drag = null, sRectCache = null, zTop = 30;
+
 function pickPiece(cx, cy){
-  for(let i=pieces.length-1; i>=0; i--){      // last in array = visually on top
+  for(let i=pieces.length-1; i>=0; i--){
     const p = pieces[i];
-    if(p.ready && alphaAt(p, cx, cy)) return p;
+    if(p.ready && p.released && alphaAt(p, cx, cy)) return p;
   }
   return null;
 }
 function alphaAt(p, cx, cy){
   const r = p.el.getBoundingClientRect();
   if(cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return false;
-  if(!p.hit) return true;                      // no alpha map -> rectangle hit
-  const u = (cx-r.left)/r.width, v = (cy-r.top)/r.height;   // within the bbox
-  const gu = p.fx + u*p.fw, gv = p.fy + v*p.fh;             // within full canvas
+  if(!p.hit) return true;
+  const u = (cx-r.left)/r.width, v = (cy-r.top)/r.height;
+  const gu = p.fx + u*p.fw, gv = p.fy + v*p.fh;
   const hx = clamp(Math.floor(gu*p.hit.w), 0, p.hit.w-1);
   const hy = clamp(Math.floor(gv*p.hit.h), 0, p.hit.h-1);
   return p.hit.data[(hy*p.hit.w + hx)*4 + 3] > 22;
 }
-
-/* ---------- dragging ---------- */
-let drag = null, sRectCache = null, zTop = 10;
-
 function bringToFront(p){
   p.el.style.zIndex = (++zTop);
   const i = pieces.indexOf(p);
@@ -315,15 +478,14 @@ function bringToFront(p){
 }
 
 stage.addEventListener('pointerdown', e => {
+  if(phase !== 'play') return;                  // no dragging while cutting
   const p = pickPiece(e.clientX, e.clientY);
   if(!p) return;
   e.preventDefault();
   sRectCache = stage.getBoundingClientRect();
   bringToFront(p);
-  drag = { p,
-           dx:(e.clientX - sRectCache.left) - p.x,
-           dy:(e.clientY - sRectCache.top)  - p.y };
-  p.worn = false;                              // grabbing it lifts it off
+  drag = { p, dx:(e.clientX - sRectCache.left) - p.x, dy:(e.clientY - sRectCache.top) - p.y };
+  p.worn = false;
   setCursorMode('drag');
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
@@ -336,8 +498,7 @@ function onMove(e){
   p.x = clamp((e.clientX - sRectCache.left) - drag.dx, -p.fx*W, stageW - p.fx*W);
   p.y = clamp((e.clientY - sRectCache.top)  - drag.dy, -p.fy*H, stageH - p.fy*H);
   applyPos(p);
-  const near = Math.hypot(p.x - p.homeX, p.y - p.homeY) <= SNAP_PX;
-  dollStage.classList.toggle('snap-ready', near);
+  dollStage.classList.toggle('snap-ready', Math.hypot(p.x-p.homeX, p.y-p.homeY) <= SNAP_PX);
 }
 
 function onUp(){
@@ -348,8 +509,7 @@ function onUp(){
   window.removeEventListener('pointercancel', onUp);
   dollStage.classList.remove('snap-ready');
   setCursorMode('point');
-
-  if(Math.hypot(p.x - p.homeX, p.y - p.homeY) <= SNAP_PX){
+  if(Math.hypot(p.x-p.homeX, p.y-p.homeY) <= SNAP_PX){
     p.x = p.homeX; p.y = p.homeY; p.worn = true;
     p.el.style.transition = 'transform .12s ease-out';
     applyPos(p);
@@ -359,10 +519,7 @@ function onUp(){
   }
 }
 
-/* ---------- the paper-doll hand cursor ----------
-   The cursor PNGs ship on a solid white background, so we chroma-key the white
-   out to transparency once at load (falls back to the raw image if pixels can't
-   be read, e.g. opened from file://). */
+/* ===================== HAND CURSOR ===================== */
 const CUR = {
   point: { file:A+'cursorPoint.png', src:A+'cursorPoint.png', w:56, aspect:1,   hx:0.22, hy:0.07 },
   drag:  { file:A+'cursorDrag.png',  src:A+'cursorDrag.png',  w:64, aspect:0.5, hx:0.46, hy:0.5  },
@@ -373,11 +530,11 @@ function knockoutWhite(img){
   const id = x.getImageData(0,0,c.width,c.height), d = id.data;
   for(let i=0;i<d.length;i+=4){
     const mn = Math.min(d[i],d[i+1],d[i+2]);
-    if(mn > 236) d[i+3] = 0;                         // white -> clear
-    else if(mn > 200) d[i+3] = Math.round(d[i+3]*(236-mn)/36);  // soften the halo
+    if(mn > 236) d[i+3] = 0;
+    else if(mn > 200) d[i+3] = Math.round(d[i+3]*(236-mn)/36);
   }
   x.putImageData(id,0,0);
-  return c.toDataURL();                              // throws if tainted -> caught below
+  return c.toDataURL();
 }
 function prepCursor(key){
   return new Promise(res => {
@@ -387,7 +544,6 @@ function prepCursor(key){
     im.src = CUR[key].file;
   });
 }
-
 let curMode = 'point';
 function setCursorMode(m){
   if(curMode === m && cursor.src) return;
@@ -404,7 +560,23 @@ window.addEventListener('pointerdown', e => { placeCursor(e.clientX,e.clientY); 
 window.addEventListener('pointerup',   e => { if(e.pointerType==='touch') cursor.classList.remove('show'); });
 window.addEventListener('pointercancel', () => cursor.classList.remove('show'));
 
-/* ---------- little flourishes ---------- */
+/* ===================== STORY ===================== */
+const STORY = {
+  work:   "Debbie made some dollars today. Unfortunately, Debbie can't have her own credit card.",
+  date:   "Debbie's date went swell! Now everyone wants to know when she'll quit her job and settle down.",
+  school: "Debbie can't get into engineering school — but she can go to botany!",
+};
+const storyMsg = document.getElementById('story-msg');
+document.querySelectorAll('.story-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.story-btn').forEach(b => b.classList.toggle('active', b === btn));
+    storyMsg.textContent = STORY[btn.dataset.key];
+    storyMsg.classList.remove('show'); void storyMsg.offsetWidth;
+    storyMsg.classList.add('show');
+  });
+});
+
+/* ===================== FLOURISHES ===================== */
 let toastT;
 function toast(msg){
   toastEl.textContent = msg;
@@ -426,23 +598,10 @@ function sparkle(x, y){
   }
 }
 
-/* ---------- "a day in Debbie's life" — a wink at the era's double standards ---------- */
-const STORY = {
-  work:   "Debbie made some dollars today. Unfortunately, Debbie can't have her own credit card.",
-  date:   "Debbie's date went swell! Now everyone wants to know when she'll quit her job and settle down.",
-  school: "Debbie can't get into engineering school — but she can go to botany!",
-};
-const storyMsg = document.getElementById('story-msg');
-document.querySelectorAll('.story-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.story-btn').forEach(b => b.classList.toggle('active', b === btn));
-    storyMsg.textContent = STORY[btn.dataset.key];
-    storyMsg.classList.remove('show'); void storyMsg.offsetWidth;   // restart the fade
-    storyMsg.classList.add('show');
-  });
+window.addEventListener('resize', () => {
+  if(phase === 'play' && !drag) layout();
+  else if(phase === 'cutting' && sheetBuilt) buildSheet();   // re-pack the page
 });
-
-window.addEventListener('resize', () => { if(!drag) layout(); });
 </script>
 </body>
 </html>
