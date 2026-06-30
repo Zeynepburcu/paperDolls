@@ -94,12 +94,39 @@
   }
   #cursor.show{ opacity:1; }
 
+  /* ---- "a day in Debbie's life" buttons + note ---- */
+  #story{ flex:0 0 auto; padding:6px 10px max(8px,env(safe-area-inset-bottom)); text-align:center; z-index:5; }
+  .story-btns{ display:flex; gap:7px; justify-content:center; flex-wrap:wrap; }
+  .story-btn{
+    font-family:inherit; font-size:clamp(11px,3.1vw,14px); font-style:italic;
+    color:var(--ink); background:linear-gradient(#fffdf6,#f4e6c8);
+    border:1px solid rgba(74,58,44,.30); border-radius:999px;
+    padding:7px 14px; box-shadow:0 2px 4px var(--shadow);
+    transition:transform .1s ease, box-shadow .1s ease, background .15s ease;
+  }
+  .story-btn:active{ transform:translateY(1px); box-shadow:0 1px 2px var(--shadow); }
+  .story-btn.active{
+    background:linear-gradient(var(--rose),var(--rose-dk)); color:#fff8ea;
+    border-color:var(--rose-dk);
+  }
+  /* the note keeps its space reserved so opening it never nudges the doll */
+  .story-msg{
+    min-height:3.4em; margin:9px auto 0; max-width:520px;
+    display:flex; align-items:center; justify-content:center;
+    font-style:italic; font-size:clamp(12px,3.4vw,15px); line-height:1.35;
+    color:var(--ink);
+    background:#fffbf0; border:1px dashed rgba(74,58,44,.35); border-radius:12px;
+    padding:9px 14px; box-shadow:inset 0 1px 3px rgba(74,58,44,.10);
+    opacity:0; transform:translateY(4px); transition:opacity .25s ease, transform .25s ease;
+  }
+  .story-msg.show{ opacity:1; transform:translateY(0); }
+
   /* toast */
   #toast{
     position:absolute; left:50%; bottom:10px; transform:translate(-50%,12px);
     background:var(--ink); color:#fff8ea; font-style:italic; font-size:14px;
     padding:8px 16px; border-radius:999px; opacity:0; pointer-events:none;
-    transition:opacity .2s, transform .2s; z-index:60; white-space:nowrap;
+    transition:opacity .2s, transform .2s; z-index:150; white-space:nowrap;
     box-shadow:0 4px 12px var(--shadow);
   }
   #toast.show{ opacity:1; transform:translate(-50%,0); }
@@ -127,9 +154,17 @@
       <div class="snap-ring"></div>
     </div>
     <!-- clothing pieces injected here -->
+    <div id="toast"></div>
   </div>
 
-  <div id="toast"></div>
+  <div id="story">
+    <div class="story-btns">
+      <button class="story-btn" data-key="work">Send Debbie to work</button>
+      <button class="story-btn" data-key="date">Send Debbie on a date</button>
+      <button class="story-btn" data-key="school">Send Debbie to school</button>
+    </div>
+    <p id="story-msg" class="story-msg" role="status" aria-live="polite"></p>
+  </div>
 </div>
 
 <img id="cursor" alt="" aria-hidden="true">
@@ -390,6 +425,22 @@ function sparkle(x, y){
     setTimeout(() => s.remove(), 750);
   }
 }
+
+/* ---------- "a day in Debbie's life" — a wink at the era's double standards ---------- */
+const STORY = {
+  work:   "Debbie made some dollars today. Unfortunately, Debbie can't have her own credit card.",
+  date:   "Debbie's date went swell! Now everyone wants to know when she'll quit her job and settle down.",
+  school: "Debbie can't get into engineering school — but she can go to botany!",
+};
+const storyMsg = document.getElementById('story-msg');
+document.querySelectorAll('.story-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.story-btn').forEach(b => b.classList.toggle('active', b === btn));
+    storyMsg.textContent = STORY[btn.dataset.key];
+    storyMsg.classList.remove('show'); void storyMsg.offsetWidth;   // restart the fade
+    storyMsg.classList.add('show');
+  });
+});
 
 window.addEventListener('resize', () => { if(!drag) layout(); });
 </script>
